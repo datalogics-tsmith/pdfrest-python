@@ -1,0 +1,28 @@
+%!PS-Adobe-3.0
+% Minimal conservative profile for custom joboptions sanity tests.
+<<
+  /ASCII85EncodePages false
+  /AutoRotatePages /All
+  /CompatibilityLevel 1.7
+  /CompressObjects /All
+  /CompressPages true
+  /CreateJobTicket false
+  /DefaultRenderingIntent /Default
+  /ColorConversionStrategy /LeaveColorUnchanged
+  /EmbedAllFonts true
+  /EndPage -1
+  /LockDistillerParams false
+  /StartPage 1
+  /SubsetFonts true
+  /UsePrologue false
+  /DownsampleColorImages false
+  /ColorImageResolution 300
+  /DownsampleGrayImages false
+  /GrayImageResolution 300
+  /DownsampleMonoImages false
+  /MonoImageResolution 1200
+>> setdistillerparams
+<<
+  /HWResolution [600 600]
+  /PageSize [612.000 792.000]
+>> setpagedevice
