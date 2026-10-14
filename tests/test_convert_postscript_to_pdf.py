@@ -29,14 +29,59 @@ def _make_job_options_file(
     ).model_copy(update={"size": size})
 
 
-def test_convert_postscript_to_pdf_success(monkeypatch: pytest.MonkeyPatch) -> None:
+INVALID_JOB_OPTIONS_CASES: tuple[tuple[PdfRestFile | list[PdfRestFile], str], ...] = (
+    (
+        _make_job_options_file(mime_type="text/plain"),
+        r"Must be a \.joboptions file",
+    ),
+    (
+        _make_job_options_file(name="profile.txt"),
+        r"Must be a \.joboptions file",
+    ),
+    (
+        _make_job_options_file(size=0),
+        "between 1 byte and 5 MiB",
+    ),
+    (
+        _make_job_options_file(size=MAX_JOB_OPTIONS_SIZE + 1),
+        "between 1 byte and 5 MiB",
+    ),
+    ([], "at least 1 item"),
+    (
+        [_make_job_options_file(), _make_job_options_file()],
+        "at most 1 item",
+    ),
+)
+INVALID_JOB_OPTIONS_CASE_IDS = (
+    "mime-type",
+    "extension",
+    "empty-file",
+    "too-large",
+    "empty-list",
+    "multiple",
+)
+
+
+@pytest.mark.parametrize(
+    "job_options_size",
+    [
+        pytest.param(1, id="minimum"),
+        pytest.param(2, id="minimum-plus-one"),
+        pytest.param(MAX_JOB_OPTIONS_SIZE - 1, id="maximum-minus-one"),
+        pytest.param(MAX_JOB_OPTIONS_SIZE, id="maximum"),
+    ],
+)
+def test_convert_postscript_to_pdf_success(
+    monkeypatch: pytest.MonkeyPatch,
+    job_options_size: int,
+) -> None:
     monkeypatch.delenv("PDFREST_API_KEY", raising=False)
     input_file = make_source_file(
         str(PdfRestFileID.generate(1)),
         "application/postscript",
         "example.ps",
     )
-    job_options = _make_job_options_file()
+    job_options = _make_job_options_file(size=job_options_size)
     output_id = str(PdfRestFileID.generate())
     payload_dump = ConvertPostscriptToPdfPayload.model_validate(
         {
@@ -178,6 +223,8 @@ def test_convert_postscript_to_pdf_validation_errors() -> None:
     "size",
     [
         pytest.param(1, id="minimum"),
+        pytest.param(2, id="minimum-plus-one"),
+        pytest.param(MAX_JOB_OPTIONS_SIZE - 1, id="maximum-minus-one"),
         pytest.param(MAX_JOB_OPTIONS_SIZE, id="maximum"),
     ],
 )
@@ -237,18 +284,8 @@ def test_convert_postscript_to_pdf_job_options_validation(
 
 @pytest.mark.parametrize(
     ("job_options", "error_match"),
-    [
-        pytest.param(
-            _make_job_options_file(mime_type="text/plain"),
-            r"Must be a \.joboptions file",
-            id="mime-type",
-        ),
-        pytest.param(
-            [_make_job_options_file(), _make_job_options_file()],
-            "at most 1 item",
-            id="multiple",
-        ),
-    ],
+    INVALID_JOB_OPTIONS_CASES,
+    ids=INVALID_JOB_OPTIONS_CASE_IDS,
 )
 def test_convert_postscript_to_pdf_job_options_client_validation(
     monkeypatch: pytest.MonkeyPatch,
@@ -271,8 +308,18 @@ def test_convert_postscript_to_pdf_job_options_client_validation(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "job_options_size",
+    [
+        pytest.param(1, id="minimum"),
+        pytest.param(2, id="minimum-plus-one"),
+        pytest.param(MAX_JOB_OPTIONS_SIZE - 1, id="maximum-minus-one"),
+        pytest.param(MAX_JOB_OPTIONS_SIZE, id="maximum"),
+    ],
+)
 async def test_async_convert_postscript_to_pdf_success(
     monkeypatch: pytest.MonkeyPatch,
+    job_options_size: int,
 ) -> None:
     monkeypatch.delenv("PDFREST_API_KEY", raising=False)
     input_file = make_source_file(
@@ -280,7 +327,7 @@ async def test_async_convert_postscript_to_pdf_success(
         "application/x-eps",
         "graphic.eps",
     )
-    job_options = _make_job_options_file()
+    job_options = _make_job_options_file(size=job_options_size)
     output_id = str(PdfRestFileID.generate())
     payload_dump = ConvertPostscriptToPdfPayload.model_validate(
         {
@@ -335,18 +382,8 @@ async def test_async_convert_postscript_to_pdf_success(
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("job_options", "error_match"),
-    [
-        pytest.param(
-            _make_job_options_file(mime_type="text/plain"),
-            r"Must be a \.joboptions file",
-            id="mime-type",
-        ),
-        pytest.param(
-            [_make_job_options_file(), _make_job_options_file()],
-            "at most 1 item",
-            id="multiple",
-        ),
-    ],
+    INVALID_JOB_OPTIONS_CASES,
+    ids=INVALID_JOB_OPTIONS_CASE_IDS,
 )
 async def test_async_convert_postscript_to_pdf_job_options_client_validation(
     monkeypatch: pytest.MonkeyPatch,
