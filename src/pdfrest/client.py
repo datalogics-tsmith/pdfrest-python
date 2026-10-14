@@ -4937,6 +4937,7 @@ class PdfRestClient(_SyncApiClient):
         output: str | None = None,
         compression: PdfConversionCompression = "lossy",
         downsample: PdfConversionDownsample | None = None,
+        job_options: PdfRestFile | Sequence[PdfRestFile] | None = None,
         extra_query: Query | None = None,
         extra_headers: AnyMapping | None = None,
         extra_body: Body | None = None,
@@ -4951,6 +4952,8 @@ class PdfRestClient(_SyncApiClient):
             output: Output filename prefix used by pdfRest when creating files.
             compression: Compression mode used during conversion.
             downsample: Image downsampling setting for conversion.
+            job_options: Uploaded `.joboptions` file containing a custom
+                Distiller conversion profile.
             extra_query: Additional query parameters merged into the request.
             extra_headers: Additional HTTP headers merged into the request.
             extra_body: Additional request body fields merged into the payload.
@@ -4968,6 +4971,7 @@ class PdfRestClient(_SyncApiClient):
             "output": output,
             "compression": compression,
             "downsample": downsample,
+            "job_options": job_options,
         }
         payload = {key: value for key, value in payload.items() if value is not None}
 
@@ -8377,6 +8381,7 @@ class AsyncPdfRestClient(_AsyncApiClient):
         output: str | None = None,
         compression: PdfConversionCompression = "lossy",
         downsample: PdfConversionDownsample | None = None,
+        job_options: PdfRestFile | Sequence[PdfRestFile] | None = None,
         extra_query: Query | None = None,
         extra_headers: AnyMapping | None = None,
         extra_body: Body | None = None,
@@ -8391,6 +8396,8 @@ class AsyncPdfRestClient(_AsyncApiClient):
             output: Output filename prefix used by pdfRest when creating files.
             compression: Compression mode used during conversion.
             downsample: Image downsampling setting for conversion.
+            job_options: Uploaded `.joboptions` file containing a custom
+                Distiller conversion profile.
             extra_query: Additional query parameters merged into the request.
             extra_headers: Additional HTTP headers merged into the request.
             extra_body: Additional request body fields merged into the payload.
@@ -8408,6 +8415,7 @@ class AsyncPdfRestClient(_AsyncApiClient):
             "output": output,
             "compression": compression,
             "downsample": downsample,
+            "job_options": job_options,
         }
         payload = {key: value for key, value in payload.items() if value is not None}
 

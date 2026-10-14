@@ -7,11 +7,26 @@ import pytest
 from pydantic import ValidationError
 
 from pdfrest import AsyncPdfRestClient, PdfRestClient
-from pdfrest.models import PdfRestFileBasedResponse, PdfRestFileID
+from pdfrest.models import PdfRestFile, PdfRestFileBasedResponse, PdfRestFileID
 from pdfrest.models._internal import ConvertPostscriptToPdfPayload
 
 from .convert_to_pdf_test_helpers import make_source_file
 from .graphics_test_helpers import ASYNC_API_KEY, VALID_API_KEY, build_file_info_payload
+
+MAX_JOB_OPTIONS_SIZE = 5 * 1024 * 1024
+
+
+def _make_job_options_file(
+    *,
+    name: str = "valid.joboptions",
+    mime_type: str = "application/octet-stream",
+    size: int = 299,
+) -> PdfRestFile:
+    return make_source_file(
+        str(PdfRestFileID.generate()),
+        mime_type,
+        name,
+    ).model_copy(update={"size": size})
 
 
 def test_convert_postscript_to_pdf_success(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -21,6 +36,7 @@ def test_convert_postscript_to_pdf_success(monkeypatch: pytest.MonkeyPatch) -> N
         "application/postscript",
         "example.ps",
     )
+    job_options = _make_job_options_file()
     output_id = str(PdfRestFileID.generate())
     payload_dump = ConvertPostscriptToPdfPayload.model_validate(
         {
@@ -28,6 +44,7 @@ def test_convert_postscript_to_pdf_success(monkeypatch: pytest.MonkeyPatch) -> N
             "output": "converted",
             "compression": "lossless",
             "downsample": 150,
+            "job_options": job_options,
         }
     ).model_dump(mode="json", by_alias=True, exclude_none=True, exclude_unset=True)
 
@@ -41,7 +58,7 @@ def test_convert_postscript_to_pdf_success(monkeypatch: pytest.MonkeyPatch) -> N
             return httpx.Response(
                 200,
                 json={
-                    "inputId": [input_file.id],
+                    "inputId": [input_file.id, job_options.id],
                     "outputId": [output_id],
                 },
             )
@@ -64,6 +81,7 @@ def test_convert_postscript_to_pdf_success(monkeypatch: pytest.MonkeyPatch) -> N
             output="converted",
             compression="lossless",
             downsample=150,
+            job_options=job_options,
         )
 
     assert seen == {"post": 1, "get": 1}
@@ -71,7 +89,7 @@ def test_convert_postscript_to_pdf_success(monkeypatch: pytest.MonkeyPatch) -> N
     assert response.output_file.name == "converted.pdf"
     assert response.output_file.type == "application/pdf"
     assert response.warning is None
-    assert str(response.input_id) == str(input_file.id)
+    assert response.input_ids == [input_file.id, job_options.id]
 
 
 def test_convert_postscript_to_pdf_request_customization(
@@ -156,6 +174,102 @@ def test_convert_postscript_to_pdf_validation_errors() -> None:
         )
 
 
+@pytest.mark.parametrize(
+    "size",
+    [
+        pytest.param(1, id="minimum"),
+        pytest.param(MAX_JOB_OPTIONS_SIZE, id="maximum"),
+    ],
+)
+def test_convert_postscript_to_pdf_job_options_size_boundaries(size: int) -> None:
+    input_file = make_source_file(
+        str(PdfRestFileID.generate(2)),
+        "application/postscript",
+        "example.ps",
+    )
+    job_options = _make_job_options_file(size=size)
+
+    payload = ConvertPostscriptToPdfPayload.model_validate(
+        {"files": input_file, "job_options": job_options}
+    ).model_dump(mode="json", by_alias=True, exclude_none=True)
+
+    assert payload == {
+        "id": str(input_file.id),
+        "job_options_id": str(job_options.id),
+    }
+
+
+@pytest.mark.parametrize(
+    ("job_options", "error_match"),
+    [
+        pytest.param(
+            _make_job_options_file(name="profile.txt"),
+            r"Must be a \.joboptions file",
+            id="extension",
+        ),
+        pytest.param(
+            _make_job_options_file(size=0),
+            "between 1 byte and 5 MiB",
+            id="empty",
+        ),
+        pytest.param(
+            _make_job_options_file(size=MAX_JOB_OPTIONS_SIZE + 1),
+            "between 1 byte and 5 MiB",
+            id="too-large",
+        ),
+    ],
+)
+def test_convert_postscript_to_pdf_job_options_validation(
+    job_options: PdfRestFile,
+    error_match: str,
+) -> None:
+    input_file = make_source_file(
+        str(PdfRestFileID.generate(2)),
+        "application/postscript",
+        "example.ps",
+    )
+
+    with pytest.raises(ValidationError, match=error_match):
+        ConvertPostscriptToPdfPayload.model_validate(
+            {"files": input_file, "job_options": job_options}
+        )
+
+
+@pytest.mark.parametrize(
+    ("job_options", "error_match"),
+    [
+        pytest.param(
+            _make_job_options_file(mime_type="text/plain"),
+            r"Must be a \.joboptions file",
+            id="mime-type",
+        ),
+        pytest.param(
+            [_make_job_options_file(), _make_job_options_file()],
+            "at most 1 item",
+            id="multiple",
+        ),
+    ],
+)
+def test_convert_postscript_to_pdf_job_options_client_validation(
+    monkeypatch: pytest.MonkeyPatch,
+    job_options: PdfRestFile | list[PdfRestFile],
+    error_match: str,
+) -> None:
+    monkeypatch.delenv("PDFREST_API_KEY", raising=False)
+    input_file = make_source_file(
+        str(PdfRestFileID.generate(2)),
+        "application/postscript",
+        "example.ps",
+    )
+    transport = httpx.MockTransport(lambda request: (_ for _ in ()).throw(RuntimeError))
+
+    with (
+        PdfRestClient(api_key=VALID_API_KEY, transport=transport) as client,
+        pytest.raises(ValidationError, match=error_match),
+    ):
+        client.convert_postscript_to_pdf(input_file, job_options=job_options)
+
+
 @pytest.mark.asyncio
 async def test_async_convert_postscript_to_pdf_success(
     monkeypatch: pytest.MonkeyPatch,
@@ -166,12 +280,14 @@ async def test_async_convert_postscript_to_pdf_success(
         "application/x-eps",
         "graphic.eps",
     )
+    job_options = _make_job_options_file()
     output_id = str(PdfRestFileID.generate())
     payload_dump = ConvertPostscriptToPdfPayload.model_validate(
         {
             "files": [input_file],
             "output": "async-converted",
             "compression": "lossless",
+            "job_options": job_options,
         }
     ).model_dump(mode="json", by_alias=True, exclude_none=True, exclude_unset=True)
 
@@ -185,7 +301,7 @@ async def test_async_convert_postscript_to_pdf_success(
             return httpx.Response(
                 200,
                 json={
-                    "inputId": [input_file.id],
+                    "inputId": [input_file.id, job_options.id],
                     "outputId": [output_id],
                 },
             )
@@ -206,13 +322,54 @@ async def test_async_convert_postscript_to_pdf_success(
             input_file,
             output="async-converted",
             compression="lossless",
+            job_options=job_options,
         )
 
     assert seen == {"post": 1, "get": 1}
     assert isinstance(response, PdfRestFileBasedResponse)
     assert response.output_file.name == "async-converted.pdf"
     assert response.output_file.type == "application/pdf"
-    assert str(response.input_id) == str(input_file.id)
+    assert response.input_ids == [input_file.id, job_options.id]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("job_options", "error_match"),
+    [
+        pytest.param(
+            _make_job_options_file(mime_type="text/plain"),
+            r"Must be a \.joboptions file",
+            id="mime-type",
+        ),
+        pytest.param(
+            [_make_job_options_file(), _make_job_options_file()],
+            "at most 1 item",
+            id="multiple",
+        ),
+    ],
+)
+async def test_async_convert_postscript_to_pdf_job_options_client_validation(
+    monkeypatch: pytest.MonkeyPatch,
+    job_options: PdfRestFile | list[PdfRestFile],
+    error_match: str,
+) -> None:
+    monkeypatch.delenv("PDFREST_API_KEY", raising=False)
+    input_file = make_source_file(
+        str(PdfRestFileID.generate(2)),
+        "application/postscript",
+        "example.ps",
+    )
+    transport = httpx.MockTransport(lambda request: (_ for _ in ()).throw(RuntimeError))
+
+    async with AsyncPdfRestClient(
+        api_key=ASYNC_API_KEY,
+        transport=transport,
+    ) as client:
+        with pytest.raises(ValidationError, match=error_match):
+            await client.convert_postscript_to_pdf(
+                input_file,
+                job_options=job_options,
+            )
 
 
 @pytest.mark.asyncio
