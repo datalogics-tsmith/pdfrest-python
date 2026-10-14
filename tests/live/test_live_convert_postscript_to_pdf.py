@@ -120,6 +120,7 @@ def test_live_convert_postscript_to_pdf_with_job_options(
             job_options=uploaded_job_options_for_pdf,
             output="live-job-options",
         )
+        output_bytes = client.files.read_bytes(response.output_file)
 
     assert response.input_ids == [
         uploaded_postscript_for_pdf.id,
@@ -129,6 +130,7 @@ def test_live_convert_postscript_to_pdf_with_job_options(
     assert response.output_file.type == "application/pdf"
     assert response.output_file.size > 0
     assert response.warning is None
+    assert output_bytes.startswith(b"%PDF-1.6")
 
 
 @pytest.mark.asyncio
@@ -147,6 +149,7 @@ async def test_live_async_convert_postscript_to_pdf_with_job_options(
             job_options=uploaded_job_options_for_pdf,
             output="live-job-options-async",
         )
+        output_bytes = await client.files.read_bytes(response.output_file)
 
     assert response.input_ids == [
         uploaded_postscript_for_pdf.id,
@@ -156,6 +159,7 @@ async def test_live_async_convert_postscript_to_pdf_with_job_options(
     assert response.output_file.type == "application/pdf"
     assert response.output_file.size > 0
     assert response.warning is None
+    assert output_bytes.startswith(b"%PDF-1.6")
 
 
 def test_live_convert_postscript_to_pdf_invalid_downsample(
