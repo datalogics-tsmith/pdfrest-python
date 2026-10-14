@@ -36,6 +36,21 @@ def uploaded_job_options_for_pdf(
         ]
 
 
+@pytest.fixture(scope="module")
+def uploaded_invalid_job_options_for_pdf(
+    pdfrest_api_key: str,
+    pdfrest_live_base_url: str,
+) -> PdfRestFile:
+    resource = get_test_resource_path("invalid.joboptions")
+    with PdfRestClient(
+        api_key=pdfrest_api_key,
+        base_url=pdfrest_live_base_url,
+    ) as client:
+        return client.files.create_from_paths([(resource, "application/octet-stream")])[
+            0
+        ]
+
+
 @pytest.mark.parametrize(
     ("output_name", "compression", "downsample"),
     [
@@ -160,6 +175,46 @@ async def test_live_async_convert_postscript_to_pdf_with_job_options(
     assert response.output_file.size > 0
     assert response.warning is None
     assert output_bytes.startswith(b"%PDF-1.6")
+
+
+def test_live_convert_postscript_to_pdf_rejects_invalid_job_options(
+    pdfrest_api_key: str,
+    pdfrest_live_base_url: str,
+    uploaded_postscript_for_pdf: PdfRestFile,
+    uploaded_invalid_job_options_for_pdf: PdfRestFile,
+) -> None:
+    with (
+        PdfRestClient(
+            api_key=pdfrest_api_key,
+            base_url=pdfrest_live_base_url,
+        ) as client,
+        pytest.raises(PdfRestApiError, match=r"not a valid joboptions profile"),
+    ):
+        client.convert_postscript_to_pdf(
+            uploaded_postscript_for_pdf,
+            job_options=uploaded_invalid_job_options_for_pdf,
+        )
+
+
+@pytest.mark.asyncio
+async def test_live_async_convert_postscript_to_pdf_rejects_invalid_job_options(
+    pdfrest_api_key: str,
+    pdfrest_live_base_url: str,
+    uploaded_postscript_for_pdf: PdfRestFile,
+    uploaded_invalid_job_options_for_pdf: PdfRestFile,
+) -> None:
+    async with AsyncPdfRestClient(
+        api_key=pdfrest_api_key,
+        base_url=pdfrest_live_base_url,
+    ) as client:
+        with pytest.raises(
+            PdfRestApiError,
+            match=r"not a valid joboptions profile",
+        ):
+            await client.convert_postscript_to_pdf(
+                uploaded_postscript_for_pdf,
+                job_options=uploaded_invalid_job_options_for_pdf,
+            )
 
 
 def test_live_convert_postscript_to_pdf_invalid_downsample(
