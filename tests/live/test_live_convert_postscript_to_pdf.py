@@ -31,9 +31,7 @@ def uploaded_job_options_for_pdf(
         api_key=pdfrest_api_key,
         base_url=pdfrest_live_base_url,
     ) as client:
-        return client.files.create_from_paths([(resource, "application/octet-stream")])[
-            0
-        ]
+        return client.files.create_from_paths(resource)[0]
 
 
 @pytest.fixture(scope="module")
@@ -46,9 +44,7 @@ def uploaded_invalid_job_options_for_pdf(
         api_key=pdfrest_api_key,
         base_url=pdfrest_live_base_url,
     ) as client:
-        return client.files.create_from_paths([(resource, "application/octet-stream")])[
-            0
-        ]
+        return client.files.create_from_paths(resource)[0]
 
 
 @pytest.mark.parametrize(

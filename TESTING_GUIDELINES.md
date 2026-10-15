@@ -160,6 +160,11 @@ iteration required.
   parts and filenames, and that
   `client.files.create`/`create_from_paths`/`create_from_urls` fetch info
   documents afterward.
+- Exercise supported file types through the normal `create_from_paths` upload
+  path without forcing a MIME type. If platform or content detection can produce
+  multiple legitimate MIME values, cover each value through distinct sync and
+  async REST paths. Use explicit MIME overrides only when a test is
+  intentionally varying metadata or the upload stack cannot infer the type.
 - Downloads: cover `download_file`, `files.read_bytes/text/json`, and
   `files.write_bytes` with `tmp_path`. Confirm file contents match expected
   bytes.
@@ -207,9 +212,10 @@ iteration required.
   `test_live_files.py`, etc.).
 - **Fixtures:** Reuse shared fixtures (`pdfrest_api_key`,
   `pdfrest_live_base_url`). Upload deterministic assets from `tests/resources/`
-  via `create_from_paths` (or `client.files.create`) so responses are
-  predictable. Use `pytest.fixture(scope="module"/"class")` and
-  `pytest_asyncio.fixture` to cache uploaded PDFs/profiles for both transports.
+  via the normal `create_from_paths` path (or `client.files.create`) without a
+  forced MIME type so responses reflect customer usage. Use
+  `pytest.fixture(scope="module"/"class")` and `pytest_asyncio.fixture` to cache
+  uploaded PDFs/profiles for both transports.
 - **Sync + async parity:** Every live module should contain matching sync and
   async tests for success, streaming, and invalid paths (compression levels,
   conversion options, file streaming helpers). Treat transport-plumbing

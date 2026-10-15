@@ -31,7 +31,7 @@ def _make_job_options_file(
 
 INVALID_JOB_OPTIONS_CASES: tuple[tuple[PdfRestFile | list[PdfRestFile], str], ...] = (
     (
-        _make_job_options_file(mime_type="text/plain"),
+        _make_job_options_file(mime_type="application/pdf"),
         r"Must be a \.joboptions file",
     ),
     (
@@ -71,9 +71,26 @@ INVALID_JOB_OPTIONS_CASE_IDS = (
         pytest.param(MAX_JOB_OPTIONS_SIZE, id="maximum"),
     ],
 )
+@pytest.mark.parametrize(
+    "job_options_name",
+    [
+        pytest.param("valid.joboptions", id="lowercase-extension"),
+        pytest.param("valid.JOBOPTIONS", id="uppercase-extension"),
+    ],
+)
+@pytest.mark.parametrize(
+    "job_options_mime_type",
+    [
+        pytest.param("application/octet-stream", id="octet-stream"),
+        pytest.param("application/postscript", id="postscript"),
+        pytest.param("text/plain", id="plain-text"),
+    ],
+)
 def test_convert_postscript_to_pdf_success(
     monkeypatch: pytest.MonkeyPatch,
     job_options_size: int,
+    job_options_name: str,
+    job_options_mime_type: str,
 ) -> None:
     monkeypatch.delenv("PDFREST_API_KEY", raising=False)
     input_file = make_source_file(
@@ -81,7 +98,11 @@ def test_convert_postscript_to_pdf_success(
         "application/postscript",
         "example.ps",
     )
-    job_options = _make_job_options_file(size=job_options_size)
+    job_options = _make_job_options_file(
+        name=job_options_name,
+        mime_type=job_options_mime_type,
+        size=job_options_size,
+    )
     output_id = str(PdfRestFileID.generate())
     payload_dump = ConvertPostscriptToPdfPayload.model_validate(
         {
@@ -317,9 +338,26 @@ def test_convert_postscript_to_pdf_job_options_client_validation(
         pytest.param(MAX_JOB_OPTIONS_SIZE, id="maximum"),
     ],
 )
+@pytest.mark.parametrize(
+    "job_options_name",
+    [
+        pytest.param("valid.joboptions", id="lowercase-extension"),
+        pytest.param("valid.JOBOPTIONS", id="uppercase-extension"),
+    ],
+)
+@pytest.mark.parametrize(
+    "job_options_mime_type",
+    [
+        pytest.param("application/octet-stream", id="octet-stream"),
+        pytest.param("application/postscript", id="postscript"),
+        pytest.param("text/plain", id="plain-text"),
+    ],
+)
 async def test_async_convert_postscript_to_pdf_success(
     monkeypatch: pytest.MonkeyPatch,
     job_options_size: int,
+    job_options_name: str,
+    job_options_mime_type: str,
 ) -> None:
     monkeypatch.delenv("PDFREST_API_KEY", raising=False)
     input_file = make_source_file(
@@ -327,7 +365,11 @@ async def test_async_convert_postscript_to_pdf_success(
         "application/x-eps",
         "graphic.eps",
     )
-    job_options = _make_job_options_file(size=job_options_size)
+    job_options = _make_job_options_file(
+        name=job_options_name,
+        mime_type=job_options_mime_type,
+        size=job_options_size,
+    )
     output_id = str(PdfRestFileID.generate())
     payload_dump = ConvertPostscriptToPdfPayload.model_validate(
         {

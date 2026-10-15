@@ -34,9 +34,7 @@ def convert_postscript_with_job_options() -> None:
 
     with PdfRestClient() as client:
         postscript = client.files.create_from_paths(POSTSCRIPT_PATH)[0]
-        job_options = client.files.create_from_paths(
-            [(JOB_OPTIONS_PATH, "application/octet-stream")]
-        )[0]
+        job_options = client.files.create_from_paths(JOB_OPTIONS_PATH)[0]
         response = client.convert_postscript_to_pdf(
             postscript,
             job_options=job_options,

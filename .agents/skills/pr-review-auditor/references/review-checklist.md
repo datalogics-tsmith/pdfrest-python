@@ -11,6 +11,10 @@
 - Determine PR base branch, compute merge-base, and audit `<merge_base>..HEAD`.
 - Review full commit messages, changed files, and relevant patches.
 - Focus on behavior, CI impact, tests, then style.
+- Confirm supported examples and live fixtures use normal upload MIME detection
+  rather than forcing metadata to satisfy downstream validation. When normal
+  uploads can produce multiple legitimate MIME types, require sync and async
+  REST-path coverage for each accepted value.
 
 ## Three-Pass Completeness Protocol
 

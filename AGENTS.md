@@ -160,6 +160,13 @@
   helpers should pass sequences through without converting to raw IDs manually.
 - When a payload accepts uploaded content, validate MIME types via
   `_allowed_mime_types` to surface clear errors before making the request.
+- Supported interfaces, examples, and live fixtures must work with the MIME
+  metadata produced by a normal `create_from_paths` upload. Do not force a MIME
+  type solely to satisfy a downstream validator. When valid metadata can vary by
+  platform or content detection, accept each legitimate MIME type and test it
+  through both clients; reserve explicit MIME overrides for tests that are
+  intentionally exercising metadata variants or formats the upload stack cannot
+  infer.
 - Payload models should mirror pdfRest's request layout field-for-field. Do not
   use `@model_serializer` on payload models. If callers need a friendlier input
   shape, use `@model_validator(mode="before")` to map inputs onto the existing
@@ -409,9 +416,10 @@
 
 - Examples exercise the real service, load `PDFREST_API_KEY` from the
   environment (optionally through `python-dotenv`), upload local inputs through
-  `client.files.create_from_paths`, and use client context managers. Keep the
-  flow short and instructional while printing enough typed response data for a
-  user and CI to confirm success.
+  `client.files.create_from_paths` without forcing a MIME type for supported
+  inputs, and use client context managers. Keep the flow short and instructional
+  while printing enough typed response data for a user and CI to confirm
+  success.
 
 - When a public `TypedDict` represents a structured API input, construct it in
   examples with its keyword constructor, such as `PdfAddLineObject(...)`,

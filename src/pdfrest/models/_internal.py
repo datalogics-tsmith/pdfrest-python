@@ -687,6 +687,11 @@ _PDF_POSTSCRIPT_MIME_TYPES = {
     "application/eps",
     "application/x-eps",
 }
+_PDF_JOB_OPTIONS_MIME_TYPES = {
+    "application/octet-stream",
+    "application/postscript",
+    "text/plain",
+}
 _PDF_EMAIL_MIME_TYPES = {"message/rfc822"}
 _PDF_IMAGE_MIME_TYPES = {
     "image/jpeg",
@@ -794,7 +799,7 @@ class ConvertPostscriptToPdfPayload(BaseModel):
         BeforeValidator(_ensure_list),
         AfterValidator(
             _allowed_mime_types(
-                "application/octet-stream",
+                *_PDF_JOB_OPTIONS_MIME_TYPES,
                 error_msg="Must be a .joboptions file.",
             )
         ),

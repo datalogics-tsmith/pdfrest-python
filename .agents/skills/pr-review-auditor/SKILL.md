@@ -59,6 +59,10 @@ policy precedence: `*GUIDELINES*.md` before `AGENTS.md`.
 4. Perform review in severity order.
 
 - Correctness/behavioral regressions.
+- Upload-path compatibility: supported examples and live fixtures must use
+  normal MIME detection rather than forcing metadata to bypass a narrow
+  validator. When valid uploads can report multiple MIME types, require
+  allowlist coverage through both sync and async client REST paths.
 - CI and workflow regressions.
 - Test gaps or weak assertions.
 - Secondary maintainability/style concerns.
