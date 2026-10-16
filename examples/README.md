@@ -26,6 +26,8 @@ supported interpreter matrix.
 - `examples/convert_structured_documents/convert_structured_documents_to_pdf_example.py`
   – convert Markdown, plain text, JSON, XML, and CSV documents to PDF with
   format-specific options.
+- `examples/convert_postscript_to_pdf/convert_postscript_with_job_options_example.py`
+  – convert PostScript to PDF with an uploaded custom `.joboptions` profile.
 - `examples/delete/delete_example.py` – demonstrate file deletion (sync + async
   variants).
 - `examples/extract_text/extract_pdf_text_example.py` – run `extract_pdf_text`

@@ -141,6 +141,11 @@ formats.
   [convert_json_to_pdf][pdfrest.PdfRestClient.convert_json_to_pdf],
   [convert_xml_to_pdf][pdfrest.PdfRestClient.convert_xml_to_pdf],
   [convert_csv_to_pdf][pdfrest.PdfRestClient.convert_csv_to_pdf]
+
+  For PostScript or EPS conversion, upload a `.joboptions` file first and pass
+  the returned `PdfRestFile` as `job_options` to apply a custom Distiller
+  profile. See the
+  [custom job options example](https://github.com/pdfrest/pdfrest-python/blob/main/examples/convert_postscript_to_pdf/convert_postscript_with_job_options_example.py).
 - Out of PDF:
   [convert_to_word][pdfrest.PdfRestClient.convert_to_word],
   [convert_to_excel][pdfrest.PdfRestClient.convert_to_excel],

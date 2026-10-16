@@ -297,6 +297,18 @@ def _allowed_file_extensions(
     return validate_file_extensions
 
 
+def _allowed_file_size(
+    *, minimum: int, maximum: int, error_msg: str
+) -> Callable[[list[PdfRestFile]], list[PdfRestFile]]:
+    def validate_file_size(value: list[PdfRestFile]) -> list[PdfRestFile]:
+        for file in value:
+            if not minimum <= file.size <= maximum:
+                raise ValueError(error_msg)
+        return value
+
+    return validate_file_size
+
+
 def _int_to_string(value: Any) -> Any:
     if isinstance(value, int):
         return str(value)
@@ -675,6 +687,11 @@ _PDF_POSTSCRIPT_MIME_TYPES = {
     "application/eps",
     "application/x-eps",
 }
+_PDF_JOB_OPTIONS_MIME_TYPES = {
+    "application/octet-stream",
+    "application/postscript",
+    "text/plain",
+}
 _PDF_EMAIL_MIME_TYPES = {"message/rfc822"}
 _PDF_IMAGE_MIME_TYPES = {
     "image/jpeg",
@@ -769,6 +786,37 @@ class ConvertPostscriptToPdfPayload(BaseModel):
     downsample: Annotated[
         PdfConversionDownsample | None,
         Field(serialization_alias="downsample", default=None),
+    ] = None
+    job_options: Annotated[
+        list[PdfRestFile] | None,
+        Field(
+            min_length=1,
+            max_length=1,
+            validation_alias=AliasChoices("job_options", "job_options_id"),
+            serialization_alias="job_options_id",
+            default=None,
+        ),
+        BeforeValidator(_ensure_list),
+        AfterValidator(
+            _allowed_mime_types(
+                *_PDF_JOB_OPTIONS_MIME_TYPES,
+                error_msg="Must be a .joboptions file.",
+            )
+        ),
+        AfterValidator(
+            _allowed_file_extensions(
+                ".joboptions",
+                error_msg="Must be a .joboptions file.",
+            )
+        ),
+        AfterValidator(
+            _allowed_file_size(
+                minimum=1,
+                maximum=5 * 1024 * 1024,
+                error_msg="The .joboptions file must be between 1 byte and 5 MiB.",
+            )
+        ),
+        PlainSerializer(_serialize_as_first_file_id),
     ] = None
 
 
