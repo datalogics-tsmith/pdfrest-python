@@ -23,6 +23,53 @@ from .resources import get_test_resource_path
 _TEST_PASSWORD = "open-sesame"  # noqa: S105 - Test-only password.
 
 
+def test_convert_to_tiff_rejects_empty_password(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("PDFREST_API_KEY", raising=False)
+
+    def handler(_: httpx.Request) -> httpx.Response:
+        pytest.fail("Request should not be sent when password validation fails.")
+
+    with (
+        PdfRestClient(
+            api_key=VALID_API_KEY,
+            transport=httpx.MockTransport(handler),
+        ) as client,
+        pytest.raises(
+            ValidationError,
+            match=r"password\s+String should have at least 1 character",
+        ),
+    ):
+        client.convert_to_tiff(
+            make_pdf_file("12345678-1234-4abc-8def-1234567890ab"),
+            password="",
+        )
+
+
+@pytest.mark.asyncio
+async def test_async_convert_to_tiff_rejects_empty_password(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("PDFREST_API_KEY", raising=False)
+
+    def handler(_: httpx.Request) -> httpx.Response:
+        pytest.fail("Request should not be sent when password validation fails.")
+
+    async with AsyncPdfRestClient(
+        api_key=ASYNC_API_KEY,
+        transport=httpx.MockTransport(handler),
+    ) as client:
+        with pytest.raises(
+            ValidationError,
+            match=r"password\s+String should have at least 1 character",
+        ):
+            await client.convert_to_tiff(
+                make_pdf_file("12345678-1234-4abc-8def-1234567890ab"),
+                password="",
+            )
+
+
 @pytest.mark.parametrize(
     "color_model",
     ["rgb", "rgba", "cmyk", "lab", "gray"],

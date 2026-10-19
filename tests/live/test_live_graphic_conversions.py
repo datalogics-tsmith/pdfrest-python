@@ -177,6 +177,7 @@ def test_live_graphic_password(
     endpoint_label: str,
     spec: _GraphicEndpointSpec,
 ) -> None:
+    output_prefix = f"live-password-{endpoint_label}"
     with PdfRestClient(
         api_key=pdfrest_api_key,
         base_url=pdfrest_live_base_url,
@@ -185,15 +186,18 @@ def test_live_graphic_password(
         response = client_method(
             encrypted_pdf_for_graphics,
             password=_GRAPHIC_PASSWORD,
-            output_prefix=f"live-password-{endpoint_label}",
+            output_prefix=output_prefix,
         )
 
     expected_mime, expected_suffix = _expected_file_format(endpoint_label)
-    _assert_output_files(
-        response.output_files,
-        expected_mime=expected_mime,
-        expected_suffix=expected_suffix,
-    )
+    assert len(response.output_files) == 1
+    output_file = response.output_file
+    assert output_file.name.startswith(output_prefix)
+    assert output_file.name.endswith(expected_suffix)
+    assert output_file.type == expected_mime
+    assert output_file.size > 0
+    assert output_file.url
+    assert response.warning is None
     assert str(response.input_id) == str(encrypted_pdf_for_graphics.id)
 
 
@@ -210,6 +214,7 @@ async def test_live_async_graphic_password(
     endpoint_label: str,
     spec: _GraphicEndpointSpec,
 ) -> None:
+    output_prefix = f"live-async-password-{endpoint_label}"
     async with AsyncPdfRestClient(
         api_key=pdfrest_api_key,
         base_url=pdfrest_live_base_url,
@@ -218,22 +223,31 @@ async def test_live_async_graphic_password(
         response = await client_method(
             encrypted_pdf_for_graphics,
             password=_GRAPHIC_PASSWORD,
-            output_prefix=f"live-async-password-{endpoint_label}",
+            output_prefix=output_prefix,
         )
 
     expected_mime, expected_suffix = _expected_file_format(endpoint_label)
-    _assert_output_files(
-        response.output_files,
-        expected_mime=expected_mime,
-        expected_suffix=expected_suffix,
-    )
+    assert len(response.output_files) == 1
+    output_file = response.output_file
+    assert output_file.name.startswith(output_prefix)
+    assert output_file.name.endswith(expected_suffix)
+    assert output_file.type == expected_mime
+    assert output_file.size > 0
+    assert output_file.url
+    assert response.warning is None
     assert str(response.input_id) == str(encrypted_pdf_for_graphics.id)
 
 
+@pytest.mark.parametrize(
+    "spec",
+    PAYLOAD_MODELS.values(),
+    ids=list(PAYLOAD_MODELS),
+)
 def test_live_graphic_invalid_password(
     pdfrest_api_key: str,
     pdfrest_live_base_url: str,
     encrypted_pdf_for_graphics: PdfRestFile,
+    spec: _GraphicEndpointSpec,
 ) -> None:
     with (
         PdfRestClient(
@@ -242,24 +256,30 @@ def test_live_graphic_invalid_password(
         ) as client,
         pytest.raises(PdfRestApiError, match=r"(?i)password"),
     ):
-        client.convert_to_png(
+        getattr(client, spec.method_name)(
             encrypted_pdf_for_graphics,
             password=_WRONG_GRAPHIC_PASSWORD,
         )
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "spec",
+    PAYLOAD_MODELS.values(),
+    ids=list(PAYLOAD_MODELS),
+)
 async def test_live_async_graphic_invalid_password(
     pdfrest_api_key: str,
     pdfrest_live_base_url: str,
     encrypted_pdf_for_graphics: PdfRestFile,
+    spec: _GraphicEndpointSpec,
 ) -> None:
     async with AsyncPdfRestClient(
         api_key=pdfrest_api_key,
         base_url=pdfrest_live_base_url,
     ) as client:
         with pytest.raises(PdfRestApiError, match=r"(?i)password"):
-            await client.convert_to_png(
+            await getattr(client, spec.method_name)(
                 encrypted_pdf_for_graphics,
                 password=_WRONG_GRAPHIC_PASSWORD,
             )
