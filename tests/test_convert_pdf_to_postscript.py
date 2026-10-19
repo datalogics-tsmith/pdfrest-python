@@ -179,6 +179,103 @@ def test_convert_pdf_to_postscript_scale_rejects_non_positive_or_non_finite_valu
         ConvertPdfToPostscriptPayload.model_validate({"file": source, "scale": scale})
 
 
+def test_convert_pdf_to_postscript_default_output(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("PDFREST_API_KEY", raising=False)
+    source = make_pdf_file(PdfRestFileID.generate())
+    output_id = str(PdfRestFileID.generate())
+    seen = {"post": 0, "get": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST" and request.url.path == "/postscript":
+            seen["post"] += 1
+            assert json.loads(request.content) == {
+                "id": str(source.id),
+                "ps_level": 3,
+                "page_range": "all",
+                "binary_output": True,
+                "scale": 1,
+                "rotate": False,
+                "shrink_to_fit": False,
+                "print_annotations": True,
+            }
+            return httpx.Response(
+                200,
+                json={"inputId": [source.id], "outputId": [output_id]},
+            )
+        if request.method == "GET" and request.url.path == f"/resource/{output_id}":
+            seen["get"] += 1
+            return httpx.Response(
+                200,
+                json=build_file_info_payload(
+                    output_id,
+                    "example_pdfrest_postscript.ps",
+                    "application/postscript",
+                ),
+            )
+        msg = f"Unexpected request {request.method} {request.url}"
+        raise AssertionError(msg)
+
+    with PdfRestClient(
+        api_key=VALID_API_KEY,
+        transport=httpx.MockTransport(handler),
+    ) as client:
+        response = client.convert_pdf_to_postscript(source)
+
+    assert seen == {"post": 1, "get": 1}
+    assert response.output_file.name == "example_pdfrest_postscript.ps"
+
+
+@pytest.mark.asyncio
+async def test_async_convert_pdf_to_postscript_default_output(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("PDFREST_API_KEY", raising=False)
+    source = make_pdf_file(PdfRestFileID.generate())
+    output_id = str(PdfRestFileID.generate())
+    seen = {"post": 0, "get": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST" and request.url.path == "/postscript":
+            seen["post"] += 1
+            assert json.loads(request.content) == {
+                "id": str(source.id),
+                "ps_level": 3,
+                "page_range": "all",
+                "binary_output": True,
+                "scale": 1,
+                "rotate": False,
+                "shrink_to_fit": False,
+                "print_annotations": True,
+            }
+            return httpx.Response(
+                200,
+                json={"inputId": [source.id], "outputId": [output_id]},
+            )
+        if request.method == "GET" and request.url.path == f"/resource/{output_id}":
+            seen["get"] += 1
+            return httpx.Response(
+                200,
+                json=build_file_info_payload(
+                    output_id,
+                    "example_pdfrest_postscript.ps",
+                    "application/postscript",
+                ),
+            )
+        msg = f"Unexpected request {request.method} {request.url}"
+        raise AssertionError(msg)
+
+    async with AsyncPdfRestClient(
+        api_key=ASYNC_API_KEY,
+        transport=httpx.MockTransport(handler),
+    ) as client:
+        response = await client.convert_pdf_to_postscript(source)
+
+    assert seen == {"post": 1, "get": 1}
+    assert response.output_file.name == "example_pdfrest_postscript.ps"
+
+
 @pytest.mark.parametrize(
     "ps_level",
     POSTSCRIPT_LEVELS,

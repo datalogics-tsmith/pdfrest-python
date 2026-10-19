@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import cast, get_args
+from typing import TypedDict, cast, get_args
 
 import pytest
 
@@ -15,6 +15,58 @@ POSTSCRIPT_LEVELS = cast(
     tuple[PostScriptLevel, ...],
     get_args(ConvertPdfToPostscriptPayload.model_fields["ps_level"].annotation),
 )
+SCALE_SCHEMA = ConvertPdfToPostscriptPayload.model_json_schema()["properties"]["scale"]
+SCALE_EXCLUSIVE_MINIMUM = cast(float, SCALE_SCHEMA["exclusiveMinimum"])
+SCALE_NEAR_BOUNDARY = SCALE_EXCLUSIVE_MINIMUM + 0.0001
+
+
+class PostscriptLiveOptions(TypedDict, total=False):
+    binary_output: bool
+    scale: float
+    rotate: bool
+    shrink_to_fit: bool
+    print_annotations: bool
+    output: str
+
+
+POSTSCRIPT_OPTION_CASES = [
+    pytest.param(
+        PostscriptLiveOptions(binary_output=False),
+        "report_pdfrest_postscript",
+        b"%%DocumentData: Clean7Bit",
+        id="text-safe-output",
+    ),
+    pytest.param(
+        PostscriptLiveOptions(scale=SCALE_NEAR_BOUNDARY),
+        "report_pdfrest_postscript",
+        b"%%BoundingBox: 305 395 307 397",
+        id="scale-near-exclusive-minimum",
+    ),
+    pytest.param(
+        PostscriptLiveOptions(rotate=True),
+        "report_pdfrest_postscript",
+        None,
+        id="rotation-enabled",
+    ),
+    pytest.param(
+        PostscriptLiveOptions(shrink_to_fit=True),
+        "report_pdfrest_postscript",
+        None,
+        id="shrink-to-fit-enabled",
+    ),
+    pytest.param(
+        PostscriptLiveOptions(print_annotations=False),
+        "report_pdfrest_postscript",
+        None,
+        id="annotations-disabled",
+    ),
+    pytest.param(
+        PostscriptLiveOptions(output="live-postscript-custom"),
+        "live-postscript-custom",
+        None,
+        id="custom-output",
+    ),
+]
 
 
 def _postscript_level_id(ps_level: PostScriptLevel) -> str:
@@ -34,11 +86,25 @@ def uploaded_pdf_for_postscript(
         return client.files.create_from_paths(resource)[0]
 
 
+@pytest.fixture(scope="module")
+def uploaded_single_page_pdf_for_postscript(
+    pdfrest_api_key: str,
+    pdfrest_live_base_url: str,
+) -> PdfRestFile:
+    resource = get_test_resource_path("report.pdf")
+    with PdfRestClient(
+        api_key=pdfrest_api_key,
+        base_url=pdfrest_live_base_url,
+    ) as client:
+        return client.files.create_from_paths(resource)[0]
+
+
 def _assert_postscript_response(
     output: PdfRestFile,
     output_bytes: bytes,
     output_prefix: str,
     ps_level: PostScriptLevel,
+    expected_pages: int,
 ) -> None:
     assert output.name.startswith(output_prefix)
     assert output.name.endswith(".ps")
@@ -48,7 +114,7 @@ def _assert_postscript_response(
     assert f"/resource/{output.id}" in str(output.url)
     assert output_bytes.startswith(b"%!PS-Adobe")
     assert f"%%LanguageLevel: {ps_level}".encode() in output_bytes.splitlines()
-    assert output_bytes.count(b"%%Page:") == 2
+    assert output_bytes.count(b"%%Page:") == expected_pages
 
 
 @pytest.mark.parametrize(
@@ -59,34 +125,27 @@ def _assert_postscript_response(
 def test_live_convert_pdf_to_postscript_success(
     pdfrest_api_key: str,
     pdfrest_live_base_url: str,
-    uploaded_pdf_for_postscript: PdfRestFile,
+    uploaded_single_page_pdf_for_postscript: PdfRestFile,
     ps_level: PostScriptLevel,
 ) -> None:
-    output_prefix = f"live-postscript-level-{ps_level}"
     with PdfRestClient(
         api_key=pdfrest_api_key,
         base_url=pdfrest_live_base_url,
     ) as client:
         response = client.convert_pdf_to_postscript(
-            uploaded_pdf_for_postscript,
+            uploaded_single_page_pdf_for_postscript,
             ps_level=ps_level,
-            page_range="2-3",
-            binary_output=False,
-            scale=0.75,
-            rotate=True,
-            shrink_to_fit=True,
-            print_annotations=False,
-            output=output_prefix,
         )
         output_bytes = client.files.read_bytes(response.output_file)
 
-    assert str(response.input_id) == str(uploaded_pdf_for_postscript.id)
+    assert str(response.input_id) == str(uploaded_single_page_pdf_for_postscript.id)
     assert response.warning is None
     _assert_postscript_response(
         response.output_file,
         output_bytes,
-        output_prefix,
+        "report_pdfrest_postscript",
         ps_level,
+        1,
     )
 
 
@@ -99,24 +158,69 @@ def test_live_convert_pdf_to_postscript_success(
 async def test_live_async_convert_pdf_to_postscript_success(
     pdfrest_api_key: str,
     pdfrest_live_base_url: str,
-    uploaded_pdf_for_postscript: PdfRestFile,
+    uploaded_single_page_pdf_for_postscript: PdfRestFile,
     ps_level: PostScriptLevel,
 ) -> None:
-    output_prefix = f"live-postscript-async-level-{ps_level}"
+    async with AsyncPdfRestClient(
+        api_key=pdfrest_api_key,
+        base_url=pdfrest_live_base_url,
+    ) as client:
+        response = await client.convert_pdf_to_postscript(
+            uploaded_single_page_pdf_for_postscript,
+            ps_level=ps_level,
+        )
+        output_bytes = await client.files.read_bytes(response.output_file)
+
+    assert str(response.input_id) == str(uploaded_single_page_pdf_for_postscript.id)
+    assert response.warning is None
+    _assert_postscript_response(
+        response.output_file,
+        output_bytes,
+        "report_pdfrest_postscript",
+        ps_level,
+        1,
+    )
+
+
+def test_live_convert_pdf_to_postscript_page_range(
+    pdfrest_api_key: str,
+    pdfrest_live_base_url: str,
+    uploaded_pdf_for_postscript: PdfRestFile,
+) -> None:
+    with PdfRestClient(
+        api_key=pdfrest_api_key,
+        base_url=pdfrest_live_base_url,
+    ) as client:
+        response = client.convert_pdf_to_postscript(
+            uploaded_pdf_for_postscript,
+            page_range="2-3",
+        )
+        output_bytes = client.files.read_bytes(response.output_file)
+
+    assert str(response.input_id) == str(uploaded_pdf_for_postscript.id)
+    assert response.warning is None
+    _assert_postscript_response(
+        response.output_file,
+        output_bytes,
+        "20-pages_pdfrest_postscript",
+        3,
+        2,
+    )
+
+
+@pytest.mark.asyncio
+async def test_live_async_convert_pdf_to_postscript_page_range(
+    pdfrest_api_key: str,
+    pdfrest_live_base_url: str,
+    uploaded_pdf_for_postscript: PdfRestFile,
+) -> None:
     async with AsyncPdfRestClient(
         api_key=pdfrest_api_key,
         base_url=pdfrest_live_base_url,
     ) as client:
         response = await client.convert_pdf_to_postscript(
             uploaded_pdf_for_postscript,
-            ps_level=ps_level,
             page_range="4-5",
-            binary_output=False,
-            scale=1.25,
-            rotate=True,
-            shrink_to_fit=True,
-            print_annotations=False,
-            output=output_prefix,
         )
         output_bytes = await client.files.read_bytes(response.output_file)
 
@@ -125,9 +229,81 @@ async def test_live_async_convert_pdf_to_postscript_success(
     _assert_postscript_response(
         response.output_file,
         output_bytes,
-        output_prefix,
-        ps_level,
+        "20-pages_pdfrest_postscript",
+        3,
+        2,
     )
+
+
+@pytest.mark.parametrize(
+    ("options", "output_prefix", "expected_marker"),
+    POSTSCRIPT_OPTION_CASES,
+)
+def test_live_convert_pdf_to_postscript_options(
+    pdfrest_api_key: str,
+    pdfrest_live_base_url: str,
+    uploaded_single_page_pdf_for_postscript: PdfRestFile,
+    options: PostscriptLiveOptions,
+    output_prefix: str,
+    expected_marker: bytes | None,
+) -> None:
+    with PdfRestClient(
+        api_key=pdfrest_api_key,
+        base_url=pdfrest_live_base_url,
+    ) as client:
+        response = client.convert_pdf_to_postscript(
+            uploaded_single_page_pdf_for_postscript,
+            **options,
+        )
+        output_bytes = client.files.read_bytes(response.output_file)
+
+    assert str(response.input_id) == str(uploaded_single_page_pdf_for_postscript.id)
+    assert response.warning is None
+    _assert_postscript_response(
+        response.output_file,
+        output_bytes,
+        output_prefix,
+        3,
+        1,
+    )
+    if expected_marker is not None:
+        assert expected_marker in output_bytes.splitlines()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("options", "output_prefix", "expected_marker"),
+    POSTSCRIPT_OPTION_CASES,
+)
+async def test_live_async_convert_pdf_to_postscript_options(
+    pdfrest_api_key: str,
+    pdfrest_live_base_url: str,
+    uploaded_single_page_pdf_for_postscript: PdfRestFile,
+    options: PostscriptLiveOptions,
+    output_prefix: str,
+    expected_marker: bytes | None,
+) -> None:
+    async with AsyncPdfRestClient(
+        api_key=pdfrest_api_key,
+        base_url=pdfrest_live_base_url,
+    ) as client:
+        response = await client.convert_pdf_to_postscript(
+            uploaded_single_page_pdf_for_postscript,
+            **options,
+        )
+        output_bytes = await client.files.read_bytes(response.output_file)
+
+    assert str(response.input_id) == str(uploaded_single_page_pdf_for_postscript.id)
+    assert response.warning is None
+    _assert_postscript_response(
+        response.output_file,
+        output_bytes,
+        output_prefix,
+        3,
+        1,
+    )
+    if expected_marker is not None:
+        assert expected_marker in output_bytes.splitlines()
 
 
 def test_live_convert_pdf_to_postscript_rejects_invalid_level(
@@ -214,7 +390,7 @@ def test_live_convert_pdf_to_postscript_rejects_invalid_scale(
     ):
         client.convert_pdf_to_postscript(
             uploaded_pdf_for_postscript,
-            extra_body={"scale": 0},
+            extra_body={"scale": SCALE_EXCLUSIVE_MINIMUM},
         )
 
 
@@ -234,5 +410,5 @@ async def test_live_async_convert_pdf_to_postscript_rejects_invalid_scale(
         ):
             await client.convert_pdf_to_postscript(
                 uploaded_pdf_for_postscript,
-                extra_body={"scale": 0},
+                extra_body={"scale": SCALE_EXCLUSIVE_MINIMUM},
             )
