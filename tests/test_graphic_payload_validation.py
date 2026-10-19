@@ -24,6 +24,38 @@ PAYLOAD_MODELS: tuple[type[BasePdfRestGraphicPayload[Any]], ...] = (
     JpegPdfRestPayload,
     TiffPdfRestPayload,
 )
+_TEST_PASSWORD = "open-sesame"  # noqa: S105 - Test-only password.
+
+
+@pytest.mark.parametrize("payload_model", PAYLOAD_MODELS)
+def test_graphic_payload_serializes_password(
+    payload_model: type[BasePdfRestGraphicPayload[Any]],
+) -> None:
+    payload = payload_model.model_validate(
+        {
+            "files": [make_pdf_file("12345678-1234-4abc-8def-1234567890ab")],
+            "password": _TEST_PASSWORD,
+        }
+    )
+
+    data = payload.model_dump(mode="json", by_alias=True, exclude_none=True)
+    assert data["password"] == _TEST_PASSWORD
+
+
+@pytest.mark.parametrize("payload_model", PAYLOAD_MODELS)
+def test_graphic_payload_rejects_empty_password(
+    payload_model: type[BasePdfRestGraphicPayload[Any]],
+) -> None:
+    with pytest.raises(
+        ValidationError,
+        match=r"password\s+String should have at least 1 character",
+    ):
+        payload_model.model_validate(
+            {
+                "files": [make_pdf_file("12345678-1234-4abc-8def-1234567890ab")],
+                "password": "",
+            }
+        )
 
 
 @pytest.mark.parametrize("payload_model", PAYLOAD_MODELS)
