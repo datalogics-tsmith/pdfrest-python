@@ -47,6 +47,7 @@ from ..types import (
     PdfStructuredTextPageSize,
     PdfStructuredTextTextAlignment,
     PdfXType,
+    PostScriptLevel,
     SummaryFormat,
     SummaryOutputFormat,
     SummaryOutputType,
@@ -462,6 +463,38 @@ _AscendingPageRangeTuple = Annotated[
 ]
 
 AscendingPageRange = PageNumber | Literal["last"] | _AscendingPageRangeTuple
+
+
+_POSTSCRIPT_PAGE_BOUNDARY = r"(?:last|[1-9]\d*)"
+_POSTSCRIPT_PAGE_RANGE_PATTERN = re.compile(
+    rf"^\s*(?:all|{_POSTSCRIPT_PAGE_BOUNDARY}(?:\s*-\s*{_POSTSCRIPT_PAGE_BOUNDARY})?)"
+    rf"(?:\s*,\s*(?:{_POSTSCRIPT_PAGE_BOUNDARY}(?:\s*-\s*{_POSTSCRIPT_PAGE_BOUNDARY})?))*\s*$",
+    flags=re.IGNORECASE,
+)
+
+
+def _validate_postscript_page_range(value: str) -> str:
+    if not _POSTSCRIPT_PAGE_RANGE_PATTERN.fullmatch(value):
+        msg = "An invalid page range was specified."
+        raise ValueError(msg)
+
+    normalized = value.strip()
+    if normalized.casefold() == "all":
+        return normalized
+
+    for part in normalized.split(","):
+        start, separator, end = part.partition("-")
+        if not separator:
+            continue
+        start = start.strip()
+        end = end.strip()
+        if start.casefold() == "last" and end.casefold() != "last":
+            msg = "An invalid page range was specified."
+            raise ValueError(msg)
+        if end.casefold() != "last" and int(start) > int(end):
+            msg = "An invalid page range was specified."
+            raise ValueError(msg)
+    return normalized
 
 
 class PdfInfoPayload(BaseModel):
@@ -1848,6 +1881,46 @@ class PdfToPowerpointPayload(BaseModel):
         ),
         PlainSerializer(_serialize_as_first_file_id),
     ]
+    output: Annotated[
+        str | None,
+        Field(serialization_alias="output", min_length=1, default=None),
+        AfterValidator(_validate_output_prefix),
+    ] = None
+
+
+class ConvertPdfToPostscriptPayload(BaseModel):
+    """Adapt caller options into a pdfRest-ready PDF-to-PostScript payload."""
+
+    files: Annotated[
+        list[PdfRestFile],
+        Field(
+            min_length=1,
+            max_length=1,
+            validation_alias=AliasChoices("file", "files"),
+            serialization_alias="id",
+        ),
+        BeforeValidator(_ensure_list),
+        AfterValidator(
+            _allowed_mime_types("application/pdf", error_msg="Must be a PDF file")
+        ),
+        PlainSerializer(_serialize_as_first_file_id),
+    ]
+    ps_level: Annotated[PostScriptLevel, Field(serialization_alias="ps_level")] = 3
+    page_range: Annotated[
+        str,
+        Field(serialization_alias="page_range"),
+        AfterValidator(_validate_postscript_page_range),
+    ] = "all"
+    binary_output: Annotated[bool, Field(serialization_alias="binary_output")] = True
+    scale: Annotated[
+        float,
+        Field(serialization_alias="scale", gt=0, allow_inf_nan=False),
+    ] = 1
+    rotate: Annotated[bool, Field(serialization_alias="rotate")] = False
+    shrink_to_fit: Annotated[bool, Field(serialization_alias="shrink_to_fit")] = False
+    print_annotations: Annotated[
+        bool, Field(serialization_alias="print_annotations")
+    ] = True
     output: Annotated[
         str | None,
         Field(serialization_alias="output", min_length=1, default=None),
